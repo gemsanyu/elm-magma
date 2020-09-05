@@ -106,15 +106,15 @@ int main(int argc, char **argv){
 
 
 
-  magma_free(d_row);
-  magma_free(d_col);
-  magma_free(d_col1);
-  magma_free(d_hiddenNeuron);
-  magma_free(d_X);
-  magma_free(d_Y);
-  magma_free(d_H);
-  magma_free(d_A);
-  magma_free(d_alfa);
+  // magma_free(d_row);
+  // magma_free(d_col);
+  // magma_free(d_col1);
+  // magma_free(d_hiddenNeuron);
+  // magma_free(d_X);
+  // magma_free(d_Y);
+  // magma_free(d_H);
+  // magma_free(d_A);
+  // magma_free(d_alfa);
   magma_queue_destroy(queue);
   magma_finalize();
   MPI_Finalize();
