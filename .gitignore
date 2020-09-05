@@ -1,0 +1,12 @@
+*.txt
+data/*/test/*
+data/*/training/*
+data/*/raw/*
+report/*
+weight/*
+*.o
+*.h.gch
+elm-v2
+*.csv
+*.sh
+*.txt*
