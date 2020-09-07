@@ -42,7 +42,7 @@ void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, i
 /*
   d_Adiag = d_Adiag (substract?-,+) d_alfa
 */
-void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa, bool substract);
+void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa);
 // ConfigTest readConfigTest(std::string configFileName);
 // void writeRunningTimeData(std::string fileName, RunningTimeData rt);
 // void writeMatrixfToFileBinary(std::string fileName, float* matrix, int m, int n);

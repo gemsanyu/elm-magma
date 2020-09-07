@@ -11,7 +11,7 @@
 
 #include "helper_lib.h"
 
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 256
 #define GRID_SIZE 1000
 
 using namespace std;
@@ -96,48 +96,38 @@ __global__ void d_ActivationFunction(float *d_A, int *d_row, int *d_col){
   int m = (*d_row);
   int n = (*d_col);
   int size = m*n;
-  int bIdx = blockIdx.x;
-  int tIdx = threadIdx.x;
-  int stride = blockDim.x;
-  int id = bIdx*stride + tIdx;
+  int stride = blockDim.x*gridDim.x;
+  int id = blockIdx.x*blockDim.x + threadIdx.x;
   for(int i=id;i<size;i+=stride){
     d_A[i] = 1.0 / (1.0 + exp(-d_A[i]));
   }
 }
 
 void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col){
-  // int gridSize = (row*col/BLOCK_SIZE + 1);
-  // gridSize = min(gridSize, GRID_SIZE);
-  // d_ActivationFunction<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col);
+  int gridSize = (row*col/BLOCK_SIZE + 1);
+  gridSize = min(gridSize, GRID_SIZE);
+  d_ActivationFunction<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col);
 }
 
-__global__ void d_AddToDiagonal(float *d_A, int *d_row, int *d_col, float *d_alfa, bool substract){
-  int m = (*d_col);
-  int n = (*d_col);
-  __shared__ int size;
-  size = m*n;
+__global__ void d_AddToDiagonal(float *d_A, int *d_row, int *d_col, float *d_alfa){
+  __shared__ int m, n, area;
+  m = (*d_row);
+  n = (*d_col);
+  area = gridDim.x*blockDim.x;
   int id = blockIdx.x*blockDim.x + threadIdx.x;
-  int cell = id+id*n;
-  while (cell < size){
-    if (substract){
-      d_A[cell] -= (*d_alfa);
-    } else {
-      d_A[cell] += (*d_alfa);
-    }
-    id += (gridDim.x*blockIdx.x);
+  while (id < m && id < n){
+    int cell = id + id*n;
+    d_A[cell] += (*d_alfa);
+    id += area;
     cell = id+id*n;
   }
 }
 
-void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa, bool substract){
+void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa){
   int gridSize = (col/BLOCK_SIZE + 1);
   gridSize = min(gridSize, GRID_SIZE);
-  cout<<gridSize<<" "<<BLOCK_SIZE<<"\n";
-  if (substract){
-    d_AddToDiagonal<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col, d_alfa, true);
-  } else {
-    d_AddToDiagonal<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col, d_alfa, false);
-  }
+  // cout<<gridSize<<" "<<BLOCK_SIZE<<"\n";
+  d_AddToDiagonal<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col, d_alfa);
 }
 //
 // ConfigTest readConfigTest(string configFileName){
