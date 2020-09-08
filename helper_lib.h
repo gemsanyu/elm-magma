@@ -5,6 +5,8 @@
 #include <mpi.h>
 #include <string>
 
+#include "magma_v2.h"
+
 
 struct Config{
   std::string xFileName, yFileName;
@@ -23,7 +25,8 @@ struct ConfigTest{
 
 struct RunningTimeData{
   int np, row, col, hiddenNeuron;
-  double readDataTime, writeDataTime, generateWeightTime, maxH, maxA, maxW, combineW, totalTime, realTotalTime;
+  double readDataTime, writeDataTime, generateWeightTime, maxH, maxA, maxW,
+  combineW, totalTime, realTotalTime, memoryAllocation;
 };
 
 struct AccuracyData{
@@ -43,6 +46,7 @@ void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, i
   d_Adiag = d_Adiag (substract?-,+) d_alfa
 */
 void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa);
+void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row, int col);
 // ConfigTest readConfigTest(std::string configFileName);
 // void writeRunningTimeData(std::string fileName, RunningTimeData rt);
 // void writeMatrixfToFileBinary(std::string fileName, float* matrix, int m, int n);

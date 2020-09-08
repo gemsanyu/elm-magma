@@ -34,11 +34,13 @@ int main(int argc, char **argv){
   */
   float *alfa;
   int *col1, *row, *col, *hiddenNeuron;
+  gpuTime = magma_sync_wtime(queue);
   cudaMallocManaged(&alfa, sizeof(float));
   cudaMallocManaged(&col1, sizeof(int));
   cudaMallocManaged(&col, sizeof(int));
   cudaMallocManaged(&row, sizeof(int));
   cudaMallocManaged(&hiddenNeuron, sizeof(int));
+  rt.memoryAllocation = magma_sync_wtime(queue)-gpuTime;
   *alfa = 1/conf.alpha;
   *col1 = conf.col + 1;
   *col = conf.col;
@@ -67,6 +69,7 @@ int main(int argc, char **argv){
     Allocate memory
   */
   float *X, *Y, *H, *A, *Ainv, *HtY, *Wout;
+  gpuTime = magma_sync_wtime(queue);
   cudaMallocManaged(&X, (*row)*(*col1)*sizeof(float));
   cudaMallocManaged(&Y, (*row)*(conf.classNum)*sizeof(float));
   cudaMallocManaged(&H, (*row)*(conf.hiddenNeuron)*sizeof(float));
@@ -74,10 +77,15 @@ int main(int argc, char **argv){
   cudaMallocManaged(&Ainv, conf.hiddenNeuron*conf.hiddenNeuron*sizeof(float));
   cudaMallocManaged(&HtY, conf.hiddenNeuron*conf.classNum*sizeof(float));
   cudaMallocManaged(&Wout, conf.hiddenNeuron*conf.classNum*sizeof(float));
+  rt.memoryAllocation += (magma_sync_wtime(queue) - gpuTime);
+  std::printf("Rank %d: memory allocation : %.9lf seconds\n", rank, rt.memoryAllocation);
 
   // Read traing X and Y sub-matrices,
+  gpuTime = magma_sync_wtime(queue);
   read_smatrix(MPI_COMM_WORLD, conf.xFileName, X, *row, rowOffset, *col1);
   read_smatrix(MPI_COMM_WORLD, conf.yFileName, Y, *row, rowOffset, conf.classNum);
+  rt.readDataTime = magma_sync_wtime(queue) - gpuTime;
+  std::printf("Rank %d: reading data : %.9lf seconds\n", rank, rt.readDataTime);
 
   /*
     1. H(conf.row,conf.hiddenNeuron) = X(conf.row,conf.col+1)*W(conf.col+1, conf.hiddenNeuron)
@@ -111,7 +119,8 @@ int main(int argc, char **argv){
     6. HtY = Ht*Y
     7. Wout = Ainv * HtY
   */
-  
+  getPseudoInverse(queue, A, Ainv, *hiddenNeuron, *hiddenNeuron);
+
 
 
   // magma_free(d_row);

@@ -39,7 +39,7 @@ main.o: main.cpp
 	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) $(MPICFLAGS) -c $? -o $@
 
 helper_lib.o: helper_lib.cu
-	$(NVCC) $(NVCCFLAGS) $(MPICFLAGS) -c $? -o $@
+	$(NVCC) $(NVCCFLAGS) $(MPICFLAGS) $(MAGMA_CFLAGS) -c $? -o $@
 
 clean:
 	-rm -f *.o main

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <fstream>
 #include <iostream>
@@ -10,9 +11,13 @@
 #include <unistd.h>
 
 #include "helper_lib.h"
+#include "magma_v2.h"
+#include "magma_lapack.h"
 
 #define BLOCK_SIZE 256
 #define GRID_SIZE 1000
+#define FLT_EPSILON 0.00001
+
 
 using namespace std;
 
@@ -79,7 +84,7 @@ void read_smatrix(MPI_Comm comm, std::string fileName, float *arr, int row, int 
   MPI_File_open(comm, fileNameChar, MPI_MODE_RDWR | MPI_MODE_CREATE, MPI_INFO_NULL, &file);
   MPI_File_read_at(file, rowOffset*col*sizeof(float), arrt, row*col, MPI_FLOAT, &status);
   transpose_smatrix(arrt, arr, row, col);
-  // free(arrt);
+  cudaFree(arrt);
   MPI_File_close(&file);
 }
 
@@ -128,6 +133,106 @@ void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d
   gridSize = min(gridSize, GRID_SIZE);
   // cout<<gridSize<<" "<<BLOCK_SIZE<<"\n";
   d_AddToDiagonal<<< gridSize, BLOCK_SIZE, 0, cudaStream >>>(d_A, d_row, d_col, d_alfa);
+}
+
+// __global__ void setZero(float *d_A, int *row, int *col){
+//   int m = (*row);
+//   int n = (*col);
+//   int size = m*n;
+//   int id = blockIdx.x*blockDim.x + threadIdx.x;
+//   int stride = gridDim.x*blockDim.x;
+//   while(id<size){
+//     d_A[id]=0;
+//     id += stride;
+//   }
+// }
+//
+// __global__ void copyVecInvToMatDiag(float *d_Vec, int *d_vecSize,
+// float *d_A, int *row, int *col){
+//   int m = (*row);
+//   int n = (*col);
+//   int id = blockIdx.x*blockDim.x + threadIdx.x;
+//   int stride = gridDim.x*blockDim.x;
+//   while(id<m && id<n){
+//     int cell = id*n + id;
+//     d_A[cell] = 1.0/d_Vec[id];
+//     id += stride;
+//   }
+// }
+
+void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row,
+  int col){
+    magma_int_t nb = magma_get_sgesvd_nb(row, col);
+    magma_int_t mn = min(row, col), mx = max(row, col);
+    magma_int_t lwork = -1;
+    float *A;
+    float *u;
+    float *d_u;
+    float *vt;
+    float *d_vt;
+    float *sig;
+    float *sigmat;
+    float *d_sigmat;
+    float *d_temp;
+    float *work;
+    int *iwork;
+    magma_int_t err ;
+    magma_int_t info;
+    err = magma_smalloc_cpu(&A, row*col);
+    magma_sgetmatrix(row, col, d_A, row, A, row, queue);
+    err = magma_smalloc_cpu(&u, row*row);
+    err = magma_smalloc_cpu(&sig, mn);
+    err = magma_smalloc_cpu(&sigmat, row*col);
+    err = magma_smalloc_cpu(&vt, col*col);
+    err = magma_smalloc_cpu(&work, 1);
+    err = magma_imalloc_cpu(&iwork, 8*mn);
+    err = magma_smalloc(&d_sigmat, col*row);
+    err = magma_smalloc(&d_vt, col*col);
+    err = magma_smalloc(&d_u, row*row);
+    magma_smalloc(&d_temp, col*row);
+
+    magma_sgesdd(MagmaAllVec, row, col, A, row, sig, u, row, vt, col,
+    work, lwork, iwork, &info);
+    lwork = work[0]+1;
+    err = magma_smalloc_cpu(&work, lwork);
+
+    magma_sgesdd(MagmaAllVec, row, col, A, row, sig, u, row, vt, col,
+    work, lwork, iwork, &info);
+
+    // #pragma omp parallel for collapse(2)
+    // for(int i=0;i<col;i++){
+    //   for(int j=0;j<row;j++){
+    //     sigmat[i*row+j]=0;
+    //   }
+    // }
+    //
+    // #pragma omp parallel for
+    // for(int i=0;i<mn;i++){
+    //   if (sig[i]>FLT_EPSILON || sig[i]<-FLT_EPSILON){
+    //     sigmat[i*col+i]=1/sig[i];
+    //   }
+    // }
+    // magma_ssetmatrix(col, row, sigmat, col, d_sigmat, col, queue);
+    // magma_ssetmatrix(col, col, vt, col, d_vt, col, queue);
+    // magma_ssetmatrix(row, row, u, row, d_u, row, queue);
+    //
+    // magma_sgemm(MagmaTrans, MagmaNoTrans, col, row, col, 1, d_vt, col,
+    // d_sigmat, col, 0, d_temp, col, queue);
+    // magma_sgemm(MagmaNoTrans, MagmaTrans, col, row, row, 1, d_temp, col,
+    // d_u, row, 0, d_Ainv, col, queue);
+    // magma_sync_wtime(queue);
+
+    magma_free(d_u);
+    magma_free(d_vt);
+    magma_free(d_temp);
+    magma_free(d_sigmat);
+    magma_free(d_A);
+    magma_free_cpu(u);
+    magma_free_cpu(A);
+    magma_free_cpu(vt);
+    magma_free_cpu(sig);
+    magma_free_cpu(work);
+    magma_free_cpu(iwork);
 }
 //
 // ConfigTest readConfigTest(string configFileName){
