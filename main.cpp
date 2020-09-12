@@ -46,17 +46,22 @@ int main(int argc, char **argv){
   *col = conf.col;
   *hiddenNeuron = conf.hiddenNeuron;
 
-
-  float *Winp;
-  cudaMallocManaged(&Winp, (*col1)*(conf.hiddenNeuron)*sizeof(float));
+  gpuTime = magma_sync_wtime(queue);
+  float *d_Winp;
+  magma_smalloc(&d_Winp, (*col1)*conf.hiddenNeuron);
   if (rank == ROOT){
-    magma_int_t ione=1;
+    float *Winp;
+    magma_smalloc_cpu(&Winp, (*col1)*conf.hiddenNeuron);
+    magma_int_t ione=2;
     magma_int_t ISEED[4]={0, 1, 2, 3};
     magma_int_t wSize = (*col1)*conf.hiddenNeuron;
     lapackf77_slarnv(&ione, ISEED, &wSize, Winp);
+    magma_ssetmatrix((*col1), conf.hiddenNeuron, Winp, (*col1), d_Winp, (*col1), queue);
+    magma_free_cpu(Winp);
   }
-  MPI_Bcast(Winp, (*col1)*conf.hiddenNeuron, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
-
+  MPI_Bcast(d_Winp, (*col1)*conf.hiddenNeuron, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
+  rt.generateWeightTime = magma_sync_wtime(queue) - gpuTime;
+  printf("rank %d: randomly generate input weight %.9lf seconds\n", rank, rt.generateWeightTime);
   /*
     row size and row offset per subsection (per thread per process)
     row offset is needed for mpi-read
@@ -68,15 +73,36 @@ int main(int argc, char **argv){
   /*
     Allocate memory
   */
-  float *X, *Y, *H, *A, *Ainv, *HtY, *Wout;
+  float *X, *Y, *A, *Acombined;
+  float *d_X, *d_Y, *d_H, *d_A, *d_Ainv, *d_HtY, *d_W, *d_Wout;
+  float *d_Acombined, *d_AcombinedInv, *d_AW, *d_AWcombined;
   gpuTime = magma_sync_wtime(queue);
-  cudaMallocManaged(&X, (*row)*(*col1)*sizeof(float));
-  cudaMallocManaged(&Y, (*row)*(conf.classNum)*sizeof(float));
-  cudaMallocManaged(&H, (*row)*(conf.hiddenNeuron)*sizeof(float));
-  cudaMallocManaged(&A, conf.hiddenNeuron*conf.hiddenNeuron*sizeof(float));
-  cudaMallocManaged(&Ainv, conf.hiddenNeuron*conf.hiddenNeuron*sizeof(float));
-  cudaMallocManaged(&HtY, conf.hiddenNeuron*conf.classNum*sizeof(float));
-  cudaMallocManaged(&Wout, conf.hiddenNeuron*conf.classNum*sizeof(float));
+  magma_smalloc_cpu(&X, (*row)*(*col1));
+  magma_smalloc_cpu(&Y, (*row)*conf.classNum);
+  magma_smalloc_cpu(&A, conf.hiddenNeuron*conf.hiddenNeuron);
+  magma_smalloc(&d_X, (*row)*(*col1));
+  magma_smalloc(&d_Y, (*row)*conf.classNum);
+  magma_smalloc(&d_H, (*row)*conf.hiddenNeuron);
+  magma_smalloc(&d_A, conf.hiddenNeuron*conf.hiddenNeuron);
+  magma_smalloc(&d_Ainv, conf.hiddenNeuron*conf.hiddenNeuron);
+  magma_smalloc(&d_HtY, conf.hiddenNeuron*conf.classNum);
+  magma_smalloc(&d_W, conf.hiddenNeuron*conf.classNum);
+  magma_smalloc(&d_AW, conf.hiddenNeuron*conf.classNum);
+  /*
+    ROOT only variables
+    for combining purposes
+  */
+  if (rank == ROOT){
+    magma_smalloc(&d_Acombined, conf.hiddenNeuron*conf.hiddenNeuron);
+    magma_smalloc(&d_AcombinedInv, conf.hiddenNeuron*conf.hiddenNeuron);
+    magma_smalloc(&d_Wout, conf.hiddenNeuron*conf.classNum);
+    magma_smalloc(&d_AWcombined, conf.hiddenNeuron*conf.classNum);
+    magma_smalloc_cpu(&Acombined, conf.hiddenNeuron*conf.hiddenNeuron);
+    cudaMemset(d_Acombined, 0, conf.hiddenNeuron*conf.hiddenNeuron*sizeof(float));
+    cudaMemset(d_Wout, 0, conf.hiddenNeuron*conf.classNum*sizeof(float));
+    cudaMemset(d_AWcombined, 0, conf.hiddenNeuron*conf.classNum*sizeof(float));
+  }
+
   rt.memoryAllocation += (magma_sync_wtime(queue) - gpuTime);
   std::printf("Rank %d: memory allocation : %.9lf seconds\n", rank, rt.memoryAllocation);
 
@@ -84,54 +110,95 @@ int main(int argc, char **argv){
   gpuTime = magma_sync_wtime(queue);
   read_smatrix(MPI_COMM_WORLD, conf.xFileName, X, *row, rowOffset, *col1);
   read_smatrix(MPI_COMM_WORLD, conf.yFileName, Y, *row, rowOffset, conf.classNum);
+  magma_ssetmatrix(*row, *col1, X, *row, d_X, *row, queue);
+  magma_ssetmatrix(*row, conf.classNum, Y, *row, d_Y, *row, queue);
   rt.readDataTime = magma_sync_wtime(queue) - gpuTime;
   std::printf("Rank %d: reading data : %.9lf seconds\n", rank, rt.readDataTime);
 
-  /*
-    1. H(conf.row,conf.hiddenNeuron) = X(conf.row,conf.col+1)*W(conf.col+1, conf.hiddenNeuron)
-    2. activation Function (H)
-  */
+  // magma_sprint_gpu(*row, *col1, d_X, *row, queue);
+  // magma_sprint_gpu(*row, conf.classNum, d_Y, *row, queue);
+  // /*
+  //   1. H(conf.row,conf.hiddenNeuron) = X(conf.row,conf.col+1)*W(conf.col+1, conf.hiddenNeuron)
+  //   2. activation Function (H)
+  // */
   gpuTime = magma_sync_wtime(queue);
   magma_sgemm(MagmaNoTrans, MagmaNoTrans, *row, conf.hiddenNeuron, *col1,
-    1.0 , X, *row, Winp, *col1, 0., H, *row, queue);
+    1.0 , d_X, *row, d_Winp, *col1, 0., d_H, *row, queue);
   magma_sync_wtime(queue);
-  activationFunction(cudaStream, H, (*row), conf.hiddenNeuron, row, hiddenNeuron);
+  // magma_sprint_gpu(*row, conf.hiddenNeuron, d_H, *row, queue);
+  activationFunction(cudaStream, d_H, (*row), conf.hiddenNeuron, row, hiddenNeuron);
   cudaStreamSynchronize(cudaStream);
-  rt.maxW = magma_sync_wtime(queue) - gpuTime;
-  // magma_sprint_gpu(*row, conf.hiddenNeuron, H, *row, queue);
-  std::printf("Rank %d: calculate W %.9lf seconds\n", rank, rt.maxW);
+  rt.maxH = magma_sync_wtime(queue) - gpuTime;
+  std::printf("Rank %d: calculate H %.9lf seconds\n", rank, rt.maxH);
+  // magma_sprint_gpu(*row, conf.hiddenNeuron, d_H, *row, queue);
 
-  /*
-    3. A(conf.row, conf.row) = Ht*H
-    4. Adiag += 1/alfa
-  */
+  // /*
+  //   3. A(conf.row, conf.row) = Ht*H
+  //   4. Adiag += 1/alfa
+  // */
   gpuTime = magma_sync_wtime ( queue );
   magma_sgemm(MagmaTrans, MagmaNoTrans, conf.hiddenNeuron, conf.hiddenNeuron, (*row),
-    1.0 , H, *row, H, *row, 0., A, conf.hiddenNeuron, queue);
+    1.0 , d_H, *row, d_H, *row, 0., d_A, conf.hiddenNeuron, queue);
   magma_sync_wtime(queue);
-  addToDiagonal(cudaStream, A, *hiddenNeuron, *hiddenNeuron, hiddenNeuron, hiddenNeuron, alfa);
+  addToDiagonal(cudaStream, d_A, *hiddenNeuron, *hiddenNeuron, hiddenNeuron, hiddenNeuron, alfa);
   cudaStreamSynchronize(cudaStream);
   rt.maxA = magma_sync_wtime (queue) - gpuTime;
   std::printf("Rank %d: calculate A %.9lf seconds\n", rank, rt.maxA);
+  // magma_sprint_gpu(conf.hiddenNeuron, conf.hiddenNeuron, d_A, conf.hiddenNeuron, queue);
+  //
+  // /*
+  //   5. , copy A to Host first, A inverse
+  //   6. HtY = Ht*Y
+  //   7. Wout = Ainv * HtY
+  // */
+
+  gpuTime = magma_sync_wtime(queue);
+  magma_sgetmatrix(*hiddenNeuron, *hiddenNeuron, d_A, *hiddenNeuron, A, *hiddenNeuron, queue);
+  magma_sync_wtime(queue);
+  getPseudoInverse(queue, A, d_Ainv, *hiddenNeuron, *hiddenNeuron);
+  magma_sgemm(MagmaTrans, MagmaNoTrans, conf.hiddenNeuron, conf.classNum, (*row),
+    1.0 , d_H, *row, d_Y, *row, 0., d_HtY, conf.hiddenNeuron, queue);
+  magma_sgemm(MagmaNoTrans, MagmaNoTrans, conf.hiddenNeuron, conf.classNum, conf.hiddenNeuron,
+    1.0 , d_Ainv, conf.hiddenNeuron, d_HtY, conf.hiddenNeuron, 0., d_W, conf.hiddenNeuron, queue);
+  rt.maxW = magma_sync_wtime(queue) - gpuTime;
+  std::printf("Rank %d: calculate W %.9lf seconds\n", rank, rt.maxW);
 
   /*
-    5. A inverse
-    6. HtY = Ht*Y
-    7. Wout = Ainv * HtY
+    Recombining all the output wieghts
+    if K=1, then return the W else
+      combine the A then combine the W
+      we'll try to use gather here, see what we got
   */
-  getPseudoInverse(queue, A, Ainv, *hiddenNeuron, *hiddenNeuron);
-
-
-
-  // magma_free(d_row);
-  // magma_free(d_col);
-  // magma_free(d_col1);
-  // magma_free(d_hiddenNeuron);
-  // magma_free(d_X);
-  // magma_free(d_Y);
-  // magma_free(d_H);
-  // magma_free(d_A);
-  // magma_free(d_alfa);
+  gpuTime = magma_sync_wtime(queue);
+  if (numProcs == 1){
+    magma_free(d_Wout);
+    d_Wout = d_W;
+  } else {
+    MPI_Reduce(d_A, d_Acombined, conf.hiddenNeuron*conf.hiddenNeuron,
+      MPI_FLOAT, MPI_SUM, ROOT, MPI_COMM_WORLD);
+    if (rank == ROOT){
+      *alfa = (numProcs-1.0)/conf.alpha;
+      addToDiagonal(cudaStream, d_Acombined, conf.hiddenNeuron, conf.hiddenNeuron,
+        hiddenNeuron, hiddenNeuron, alfa);
+      cudaStreamSynchronize(cudaStream);
+    }
+    magma_sgemm(MagmaNoTrans, MagmaNoTrans, conf.hiddenNeuron, conf.classNum,
+      conf.hiddenNeuron, 1.0 , d_A, conf.hiddenNeuron, d_W, conf.hiddenNeuron, 0.,
+      d_AW, conf.hiddenNeuron, queue);
+    magma_sync_wtime(queue);
+    MPI_Reduce(d_AW, d_AWcombined, conf.hiddenNeuron*conf.classNum,
+      MPI_FLOAT, MPI_SUM, ROOT, MPI_COMM_WORLD);
+    if (rank == ROOT){
+      magma_sgetmatrix(*hiddenNeuron, *hiddenNeuron, d_Acombined, *hiddenNeuron, Acombined,
+        *hiddenNeuron, queue);
+      getPseudoInverse(queue, Acombined, d_AcombinedInv, *hiddenNeuron, *hiddenNeuron);
+      magma_sgemm(MagmaNoTrans, MagmaNoTrans, conf.hiddenNeuron, conf.classNum, conf.hiddenNeuron,
+        1.0 , d_AcombinedInv, conf.hiddenNeuron, d_AWcombined, conf.hiddenNeuron, 0., d_Wout,
+        conf.hiddenNeuron, queue);
+    }
+  }
+  rt.combineW = magma_sync_wtime(queue) - gpuTime;
+  std::printf("Rank %d: combining for Wout %.9lf seconds\n", rank, rt.combineW);
   magma_queue_destroy(queue);
   magma_finalize();
   MPI_Finalize();

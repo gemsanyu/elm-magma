@@ -11,7 +11,7 @@ CXX						= g++
 FORT          = gfortran
 LD            = gcc
 CFLAGS        = -Wall
-CXXFLAGS			= -O3 -g -std=c++11 -fopenmp
+CXXFLAGS			= -O3 -g -rdynamic -std=c++11 -fopenmp
 NVCC 					= nvcc
 NVCCFLAGS     = -O3 -g -std=c++11
 LDFLAGS       = -Wall #-fopenmp

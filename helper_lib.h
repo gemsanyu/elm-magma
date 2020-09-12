@@ -39,7 +39,7 @@ Config readConfig(char **argv);
   subcount = count of subdata (K)
 */
 void getRowSplitSize(int totalRow, int subCount, int subIdx, int *row, int *rowOffset);
-void read_smatrix(MPI_Comm comm, std::string fileName, float *arr, int row, int rowOffset, int col);
+void read_smatrix(MPI_Comm comm, std::string fileName, float *d_arr, int row, int rowOffset, int col);
 void transpose_smatrix(float *src, float *dst, int row, int col);
 void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col);
 /*

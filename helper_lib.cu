@@ -16,7 +16,7 @@
 
 #define BLOCK_SIZE 256
 #define GRID_SIZE 1000
-#define FLT_EPSILON 0.00001
+#define FLT_EPSILON 1e-5
 
 
 using namespace std;
@@ -40,7 +40,7 @@ Config readConfig(char **argv){
   config.col = atoi(argv[3]);
   config.classNum = atoi(argv[4]);
   config.hiddenNeuron = atoi(argv[5]);
-  config.alpha = atoi(argv[6]);
+  config.alpha = stof(argv[6]);
   config.wInputFileName = "weight/"+dataName+"/w-in-"+
     to_string(config.hiddenNeuron);
   config.wOutputFileName = "weight/"+dataName+"/w-out-"+
@@ -79,13 +79,14 @@ void getRowSplitSize(int totalRow, int subCount, int subIdx, int *row, int *rowO
 void read_smatrix(MPI_Comm comm, std::string fileName, float *arr, int row, int rowOffset, int col){
   MPI_Status status;
   MPI_File file;
-  float *arrt = (float*) malloc(row*col*sizeof(float));
+  float *arrt;
+  arrt = (float*)malloc(row*col*sizeof(float));
   char *fileNameChar = const_cast<char*>(fileName.c_str());
   MPI_File_open(comm, fileNameChar, MPI_MODE_RDWR | MPI_MODE_CREATE, MPI_INFO_NULL, &file);
   MPI_File_read_at(file, rowOffset*col*sizeof(float), arrt, row*col, MPI_FLOAT, &status);
   transpose_smatrix(arrt, arr, row, col);
-  cudaFree(arrt);
   MPI_File_close(&file);
+  free(arrt);
 }
 
 void transpose_smatrix(float *src, float *dst, int row, int col){
@@ -104,7 +105,8 @@ __global__ void d_ActivationFunction(float *d_A, int *d_row, int *d_col){
   int stride = blockDim.x*gridDim.x;
   int id = blockIdx.x*blockDim.x + threadIdx.x;
   for(int i=id;i<size;i+=stride){
-    d_A[i] = 1.0 / (1.0 + exp(-d_A[i]));
+    float tmp = exp(-d_A[i]);
+    d_A[i] = 1.0 / (1.0 + tmp);
   }
 }
 
@@ -160,12 +162,11 @@ void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d
 //   }
 // }
 
-void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row,
+void getPseudoInverse(magma_queue_t queue, float *A, float *d_Ainv, int row,
   int col){
     magma_int_t nb = magma_get_sgesvd_nb(row, col);
     magma_int_t mn = min(row, col), mx = max(row, col);
     magma_int_t lwork = -1;
-    float *A;
     float *u;
     float *d_u;
     float *vt;
@@ -178,8 +179,6 @@ void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row,
     int *iwork;
     magma_int_t err ;
     magma_int_t info;
-    err = magma_smalloc_cpu(&A, row*col);
-    magma_sgetmatrix(row, col, d_A, row, A, row, queue);
     err = magma_smalloc_cpu(&u, row*row);
     err = magma_smalloc_cpu(&sig, mn);
     err = magma_smalloc_cpu(&sigmat, row*col);
@@ -196,39 +195,38 @@ void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row,
     lwork = work[0]+1;
     err = magma_smalloc_cpu(&work, lwork);
 
+    // magma_sprint(row, col, A, row);
     magma_sgesdd(MagmaAllVec, row, col, A, row, sig, u, row, vt, col,
     work, lwork, iwork, &info);
 
-    // #pragma omp parallel for collapse(2)
-    // for(int i=0;i<col;i++){
-    //   for(int j=0;j<row;j++){
-    //     sigmat[i*row+j]=0;
-    //   }
-    // }
-    //
-    // #pragma omp parallel for
-    // for(int i=0;i<mn;i++){
-    //   if (sig[i]>FLT_EPSILON || sig[i]<-FLT_EPSILON){
-    //     sigmat[i*col+i]=1/sig[i];
-    //   }
-    // }
-    // magma_ssetmatrix(col, row, sigmat, col, d_sigmat, col, queue);
-    // magma_ssetmatrix(col, col, vt, col, d_vt, col, queue);
-    // magma_ssetmatrix(row, row, u, row, d_u, row, queue);
-    //
-    // magma_sgemm(MagmaTrans, MagmaNoTrans, col, row, col, 1, d_vt, col,
-    // d_sigmat, col, 0, d_temp, col, queue);
-    // magma_sgemm(MagmaNoTrans, MagmaTrans, col, row, row, 1, d_temp, col,
-    // d_u, row, 0, d_Ainv, col, queue);
-    // magma_sync_wtime(queue);
+    #pragma omp parallel for collapse(2)
+    for(int i=0;i<col;i++){
+      for(int j=0;j<row;j++){
+        sigmat[i*row+j]=0;
+      }
+    }
+
+    #pragma omp parallel for
+    for(int i=0;i<mn;i++){
+      if (sig[i]>FLT_EPSILON || sig[i]<-FLT_EPSILON){
+        sigmat[i*col+i]=1/sig[i];
+      }
+    }
+    magma_ssetmatrix(col, row, sigmat, col, d_sigmat, col, queue);
+    magma_ssetmatrix(col, col, vt, col, d_vt, col, queue);
+    magma_ssetmatrix(row, row, u, row, d_u, row, queue);
+
+    magma_sgemm(MagmaTrans, MagmaNoTrans, col, row, col, 1, d_vt, col,
+    d_sigmat, col, 0, d_temp, col, queue);
+    magma_sgemm(MagmaNoTrans, MagmaTrans, col, row, row, 1, d_temp, col,
+    d_u, row, 0, d_Ainv, col, queue);
+    magma_sync_wtime(queue);
 
     magma_free(d_u);
     magma_free(d_vt);
     magma_free(d_temp);
     magma_free(d_sigmat);
-    magma_free(d_A);
     magma_free_cpu(u);
-    magma_free_cpu(A);
     magma_free_cpu(vt);
     magma_free_cpu(sig);
     magma_free_cpu(work);
