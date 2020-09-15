@@ -30,7 +30,10 @@ MAGMA_LIBS       := -L$(MAGMADIR)/lib -lmagma_sparse -lmagma \
                     -L$(CUDADIR)/lib64 -lcublas -lcudart -lcuda -lcusparse \
                     -L$(OPENBLASDIR)/lib -lopenblas -lpthread
 
-all: main test
+all: main test generate-weight
+
+generate-weight: generate-weight.cpp
+	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) -o $@ $^ $(MAGMA_LIBS)
 
 main: main.o helper_lib.o
 	$(MPICXX) $(CXXFLAGS) -o $@ $^ $(MAGMA_LIBS)
@@ -48,4 +51,4 @@ helper_lib.o: helper_lib.cu
 	$(NVCC) $(NVCCFLAGS) $(MPICFLAGS) $(MAGMA_CFLAGS) -c $? -o $@
 
 clean:
-	-rm -f *.o main
+	-rm -f *.o main test generate-weight
