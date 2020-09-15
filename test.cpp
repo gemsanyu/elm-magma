@@ -53,8 +53,8 @@ int main(int argc, char **argv){
   // read data and the generated weights
   read_smatrix(MPI_COMM_WORLD, conf.xFileName, X, conf.row, 0, conf.col+1, true);
   read_smatrix(MPI_COMM_WORLD, conf.yFileName, Y, conf.row, 0, conf.classNum, false);
-  read_smatrix(MPI_COMM_WORLD, conf.wInputFileName, Winp, conf.col+1, 0, conf.hiddenNeuron, true);
-  read_smatrix(MPI_COMM_WORLD, conf.wOutputFileName, Wout, conf.hiddenNeuron, 0, conf.classNum, true);
+  read_smatrix(MPI_COMM_WORLD, conf.wInputFileName, Winp, conf.col+1, 0, conf.hiddenNeuron, false);
+  read_smatrix(MPI_COMM_WORLD, conf.wOutputFileName, Wout, conf.hiddenNeuron, 0, conf.classNum, false);
 
   /*
     get the class of Y
