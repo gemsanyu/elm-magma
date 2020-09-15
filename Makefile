@@ -30,10 +30,16 @@ MAGMA_LIBS       := -L$(MAGMADIR)/lib -lmagma_sparse -lmagma \
                     -L$(CUDADIR)/lib64 -lcublas -lcudart -lcuda -lcusparse \
                     -L$(OPENBLASDIR)/lib -lopenblas -lpthread
 
-all: main
+all: main test
 
 main: main.o helper_lib.o
 	$(MPICXX) $(CXXFLAGS) -o $@ $^ $(MAGMA_LIBS)
+
+test: test.o helper_lib.o
+	$(MPICXX) $(CXXFLAGS) -o $@ $^ $(MAGMA_LIBS)
+
+test.o: test.cpp
+	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) $(MPICFLAGS) -c $? -o $@
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) $(MPICFLAGS) -c $? -o $@

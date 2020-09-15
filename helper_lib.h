@@ -35,11 +35,13 @@ struct AccuracyData{
 
 void randomize_smatrix(float *arr, int row, int col);
 Config readConfig(char **argv);
+ConfigTest readConfigTest(char **argv);
 /*
   subcount = count of subdata (K)
 */
 void getRowSplitSize(int totalRow, int subCount, int subIdx, int *row, int *rowOffset);
-void read_smatrix(MPI_Comm comm, std::string fileName, float *d_arr, int row, int rowOffset, int col);
+void read_smatrix(MPI_Comm comm, std::string fileName, float *d_arr,
+  int row, int rowOffset, int col, bool transpose);
 void transpose_smatrix(float *src, float *dst, int row, int col);
 void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col);
 /*
@@ -48,7 +50,7 @@ void activationFunction(cudaStream_t cudaStream, float *d_A, int row, int col, i
 void addToDiagonal(cudaStream_t cudaStream, float *d_A, int row, int col, int *d_row, int *d_col, float *d_alfa);
 void getPseudoInverse(magma_queue_t queue, float *d_A, float *d_Ainv, int row, int col);
 // ConfigTest readConfigTest(std::string configFileName);
-// void writeRunningTimeData(std::string fileName, RunningTimeData rt);
-// void writeMatrixfToFileBinary(std::string fileName, float* matrix, int m, int n);
+void writeRunningTimeData(std::string fileName, RunningTimeData rt);
+void write_smatrix(std::string fileName, float* matrix, int m, int n);
 // void writeAccuracyData(std::string fileName, AccuracyData accuracyData);
 #endif

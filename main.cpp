@@ -47,17 +47,15 @@ int main(int argc, char **argv){
   *hiddenNeuron = conf.hiddenNeuron;
 
   gpuTime = magma_sync_wtime(queue);
-  float *d_Winp;
+  float *d_Winp, *Winp;
   magma_smalloc(&d_Winp, (*col1)*conf.hiddenNeuron);
   if (rank == ROOT){
-    float *Winp;
     magma_smalloc_cpu(&Winp, (*col1)*conf.hiddenNeuron);
     magma_int_t ione=2;
     magma_int_t ISEED[4]={0, 1, 2, 3};
     magma_int_t wSize = (*col1)*conf.hiddenNeuron;
     lapackf77_slarnv(&ione, ISEED, &wSize, Winp);
     magma_ssetmatrix((*col1), conf.hiddenNeuron, Winp, (*col1), d_Winp, (*col1), queue);
-    magma_free_cpu(Winp);
   }
   MPI_Bcast(d_Winp, (*col1)*conf.hiddenNeuron, MPI_FLOAT, ROOT, MPI_COMM_WORLD);
   rt.generateWeightTime = magma_sync_wtime(queue) - gpuTime;
@@ -73,7 +71,7 @@ int main(int argc, char **argv){
   /*
     Allocate memory
   */
-  float *X, *Y, *A, *Acombined;
+  float *X, *Y, *A, *Acombined, *Wout;
   float *d_X, *d_Y, *d_H, *d_A, *d_Ainv, *d_HtY, *d_W, *d_Wout;
   float *d_Acombined, *d_AcombinedInv, *d_AW, *d_AWcombined;
   gpuTime = magma_sync_wtime(queue);
@@ -98,6 +96,7 @@ int main(int argc, char **argv){
     magma_smalloc(&d_Wout, conf.hiddenNeuron*conf.classNum);
     magma_smalloc(&d_AWcombined, conf.hiddenNeuron*conf.classNum);
     magma_smalloc_cpu(&Acombined, conf.hiddenNeuron*conf.hiddenNeuron);
+    magma_smalloc_cpu(&Wout, conf.hiddenNeuron*conf.classNum);
     cudaMemset(d_Acombined, 0, conf.hiddenNeuron*conf.hiddenNeuron*sizeof(float));
     cudaMemset(d_Wout, 0, conf.hiddenNeuron*conf.classNum*sizeof(float));
     cudaMemset(d_AWcombined, 0, conf.hiddenNeuron*conf.classNum*sizeof(float));
@@ -108,8 +107,8 @@ int main(int argc, char **argv){
 
   // Read traing X and Y sub-matrices,
   gpuTime = magma_sync_wtime(queue);
-  read_smatrix(MPI_COMM_WORLD, conf.xFileName, X, *row, rowOffset, *col1);
-  read_smatrix(MPI_COMM_WORLD, conf.yFileName, Y, *row, rowOffset, conf.classNum);
+  read_smatrix(MPI_COMM_WORLD, conf.xFileName, X, *row, rowOffset, *col1, true);
+  read_smatrix(MPI_COMM_WORLD, conf.yFileName, Y, *row, rowOffset, conf.classNum, true);
   magma_ssetmatrix(*row, *col1, X, *row, d_X, *row, queue);
   magma_ssetmatrix(*row, conf.classNum, Y, *row, d_Y, *row, queue);
   rt.readDataTime = magma_sync_wtime(queue) - gpuTime;
@@ -199,6 +198,39 @@ int main(int argc, char **argv){
   }
   rt.combineW = magma_sync_wtime(queue) - gpuTime;
   std::printf("Rank %d: combining for Wout %.9lf seconds\n", rank, rt.combineW);
+
+  double readTime,writeTime,genWTime,maxH, maxA, maxW, memAlloc, combineW;
+  MPI_Reduce(&rt.memoryAllocation, &memAlloc, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.readDataTime, &readTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.writeDataTime, &writeTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.generateWeightTime, &genWTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.maxH, &maxH, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.maxA, &maxA, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.maxW, &maxW, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+  MPI_Reduce(&rt.combineW, &combineW, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+
+
+  if (rank == ROOT){
+    magma_sgetmatrix(conf.hiddenNeuron, conf.classNum, d_Wout, conf.hiddenNeuron, Wout,
+      conf.hiddenNeuron, queue);
+    write_smatrix(conf.wInputFileName, Winp, (*col1), conf.hiddenNeuron);
+    write_smatrix(conf.wOutputFileName, Wout, conf.hiddenNeuron, conf.classNum);
+    rt.np = numProcs;
+    rt.row = conf.row;
+    rt.col = conf.col;
+    rt.hiddenNeuron = conf.hiddenNeuron;
+    rt.totalTime = rt.readDataTime + rt.writeDataTime + rt.generateWeightTime+
+    rt.maxH + rt.maxA + rt.maxW + rt.combineW;
+    rt.readDataTime = readTime;
+    rt.generateWeightTime = genWTime;
+    rt.maxA = maxA;
+    rt.maxH = maxH;
+    rt.maxW = maxW;
+    rt.combineW = combineW;
+    rt.memoryAllocation = memAlloc;
+    writeRunningTimeData(conf.runningTimeFileName, rt);
+  }
+
   magma_queue_destroy(queue);
   magma_finalize();
   MPI_Finalize();
