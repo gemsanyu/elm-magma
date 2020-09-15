@@ -1,2 +1,2 @@
-TRAINING : mnist 1000 784 10 500 0.1 pc-running-time.csv
-TEST     : mnist 10 784 10 500 0.1 pc-accuracy-1
+TRAINING : mnist 60000 784 10 1000 0.1 pc-running-time.csv
+TEST     : mnist 10000 784 10 1000 0.1 pc-accuracy-1

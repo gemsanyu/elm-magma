@@ -199,10 +199,9 @@ int main(int argc, char **argv){
   rt.combineW = magma_sync_wtime(queue) - gpuTime;
   std::printf("Rank %d: combining for Wout %.9lf seconds\n", rank, rt.combineW);
 
-  double readTime,writeTime,genWTime,maxH, maxA, maxW, memAlloc, combineW;
+  double readTime,genWTime,maxH, maxA, maxW, memAlloc, combineW;
   MPI_Reduce(&rt.memoryAllocation, &memAlloc, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
   MPI_Reduce(&rt.readDataTime, &readTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
-  MPI_Reduce(&rt.writeDataTime, &writeTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
   MPI_Reduce(&rt.generateWeightTime, &genWTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
   MPI_Reduce(&rt.maxH, &maxH, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
   MPI_Reduce(&rt.maxA, &maxA, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
@@ -219,8 +218,6 @@ int main(int argc, char **argv){
     rt.row = conf.row;
     rt.col = conf.col;
     rt.hiddenNeuron = conf.hiddenNeuron;
-    rt.totalTime = rt.readDataTime + rt.writeDataTime + rt.generateWeightTime+
-    rt.maxH + rt.maxA + rt.maxW + rt.combineW;
     rt.readDataTime = readTime;
     rt.generateWeightTime = genWTime;
     rt.maxA = maxA;
@@ -228,6 +225,8 @@ int main(int argc, char **argv){
     rt.maxW = maxW;
     rt.combineW = combineW;
     rt.memoryAllocation = memAlloc;
+    rt.totalTime = rt.readDataTime + rt.generateWeightTime+
+    rt.maxH + rt.maxA + rt.maxW + rt.combineW;
     writeRunningTimeData(conf.runningTimeFileName, rt);
   }
 
