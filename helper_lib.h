@@ -17,7 +17,7 @@ struct Config{
 
 struct ConfigTest{
   std::string xFileName, yFileName;
-  int row, col, classNum, hiddenNeuron;
+  int row, col, classNum, hiddenNeuron, subCount;
   double alpha;
   std::string wInputFileName, wOutputFileName, accuracyFileName;
 };

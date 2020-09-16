@@ -56,6 +56,35 @@ Config readConfig(char **argv){
   return config;
 }
 
+ConfigTest readConfigTest(char **argv){
+  ConfigTest config;
+  string dataName = argv[1];
+  config.xFileName = "data/"+dataName+"/test/file_x.bin";
+  config.yFileName = "data/"+dataName+"/test/file_y.bin";
+  config.row = atoi(argv[2]);
+  config.col = atoi(argv[3]);
+  config.classNum = atoi(argv[4]);
+  config.hiddenNeuron = atoi(argv[5]);
+  config.alpha = stof(argv[6]);
+  config.wInputFileName = "weight/"+dataName+"/w-in-"+
+  to_string(config.hiddenNeuron)+".bin";
+  config.wOutputFileName = "weight/"+dataName+"/w-out-"+
+  to_string(config.hiddenNeuron)+".bin";
+  config.subCount = atoi(argv[7]);
+  config.accuracyFileName = argv[8];
+  config.accuracyFileName = "report/"+dataName+"/"+config.accuracyFileName;
+
+  cout << "Using " << dataName <<"\n";
+  cout << "Total Rows : " << config.row <<"; Cols : "<< config.col<<"; ";
+  cout << "Class : " << config.classNum<<"\n";
+  cout << "Hidden Neuron : " << config.hiddenNeuron <<"\n";
+  cout << "W-input Data: " << config.wInputFileName <<"\n";
+  cout << "W-output Data: " << config.wOutputFileName <<"\n";
+  cout << "Test X Data: " << config.xFileName <<"\n";
+  cout << "Test Y Data: " << config.yFileName <<"\n";
+  return config;
+}
+
 void getRowSplitSize(int totalRow, int subCount, int subIdx, int *row, int *rowOffset){
 
   int rowSplitSizeRemainder = totalRow % subCount;
@@ -213,34 +242,6 @@ void getPseudoInverse(magma_queue_t queue, float *A, float *d_Ainv, int row,
     magma_free_cpu(sig);
     magma_free_cpu(work);
     magma_free_cpu(iwork);
-}
-
-ConfigTest readConfigTest(char **argv){
-  ConfigTest config;
-  string dataName = argv[1];
-  config.xFileName = "data/"+dataName+"/test/file_x.bin";
-  config.yFileName = "data/"+dataName+"/test/file_y.bin";
-  config.row = atoi(argv[2]);
-  config.col = atoi(argv[3]);
-  config.classNum = atoi(argv[4]);
-  config.hiddenNeuron = atoi(argv[5]);
-  config.alpha = stof(argv[6]);
-  config.wInputFileName = "weight/"+dataName+"/w-in-"+
-  to_string(config.hiddenNeuron)+".bin";
-  config.wOutputFileName = "weight/"+dataName+"/w-out-"+
-  to_string(config.hiddenNeuron)+".bin";
-  config.accuracyFileName = argv[7];
-  config.accuracyFileName = "report/"+dataName+"/"+config.accuracyFileName;
-
-  cout << "Using " << dataName <<"\n";
-  cout << "Total Rows : " << config.row <<"; Cols : "<< config.col<<"; ";
-  cout << "Class : " << config.classNum<<"\n";
-  cout << "Hidden Neuron : " << config.hiddenNeuron <<"\n";
-  cout << "W-input Data: " << config.wInputFileName <<"\n";
-  cout << "W-output Data: " << config.wOutputFileName <<"\n";
-  cout << "Test X Data: " << config.xFileName <<"\n";
-  cout << "Test Y Data: " << config.yFileName <<"\n";
-  return config;
 }
 
 void write_smatrix(std::string fileName, float* matrix, int m, int n){
