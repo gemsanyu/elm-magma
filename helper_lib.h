@@ -24,7 +24,7 @@ struct ConfigTest{
 
 
 struct RunningTimeData{
-  int np, row, col, hiddenNeuron;
+  int np, subCount, row, col, hiddenNeuron;
   double readDataTime, maxH, maxA, maxW, combineW, totalTime, memoryAllocation;
 };
 

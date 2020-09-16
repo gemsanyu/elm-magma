@@ -237,6 +237,7 @@ int main(int argc, char **argv){
     magma_sgetmatrix(conf.hiddenNeuron, conf.classNum, d_Wout, conf.hiddenNeuron, Wout,
       conf.hiddenNeuron, queue);
     write_smatrix(conf.wOutputFileName, Wout, conf.hiddenNeuron, conf.classNum);
+    rt.subCount = conf.subCount;
     rt.np = numProcs;
     rt.row = conf.row;
     rt.col = conf.col;
