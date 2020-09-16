@@ -1,3 +1,5 @@
+TRAINING : higgs 7000000 28 2 1000 0.1 1 higgs-running-time.csv
+TEST higgs 3500000 784 10 1000 0.1 1 higgs-accuracy
 higgs
 7000000
 28
