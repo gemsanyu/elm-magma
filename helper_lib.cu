@@ -42,9 +42,9 @@ Config readConfig(char **argv){
   config.hiddenNeuron = atoi(argv[5]);
   config.alpha = stof(argv[6]);
   config.wInputFileName = "weight/"+dataName+"/w-in-"+
-    to_string(config.hiddenNeuron);
+    to_string(config.hiddenNeuron)+".bin";
   config.wOutputFileName = "weight/"+dataName+"/w-out-"+
-  to_string(config.hiddenNeuron);
+  to_string(config.hiddenNeuron)+".bin";
   config.runningTimeFileName = argv[7];
   config.runningTimeFileName = "report/"+dataName+"/"+config.runningTimeFileName;
 
@@ -243,7 +243,6 @@ ConfigTest readConfigTest(char **argv){
 }
 
 void write_smatrix(std::string fileName, float* matrix, int m, int n){
-  fileName = fileName + ".bin";
   printf("Writing Matrix to file %s\n", fileName);
   printf("Rows = %d, Col = %d\n", m, n);
 
@@ -261,8 +260,8 @@ void writeRunningTimeData(string fileName, RunningTimeData rt){
     outFile = fopen(fileName.c_str(), "wb");
     fprintf(outFile, "NP,ROW,COL,HIDDEN_NEURON,READ_TIME,GEN_W_TIME,MAX_H,MAX_A,MAX_W,COMBINE_W,TOTAL\n");
   }
-  fprintf(outFile, "%d,%d,%d,%d,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf\n", rt.np,
-  rt.row, rt.col, rt.hiddenNeuron, rt.readDataTime, rt.generateWeightTime, rt.maxH,
+  fprintf(outFile, "%d,%d,%d,%d,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf\n", rt.np,
+  rt.row, rt.col, rt.hiddenNeuron, rt.readDataTime, rt.maxH,
   rt.maxA, rt.maxW, rt.combineW,  rt.totalTime);
   fclose(outFile);
 }

@@ -10,3 +10,6 @@ elm-v2
 *.csv
 *.sh
 *.txt*
+main
+test
+generate-weight

@@ -32,8 +32,8 @@ MAGMA_LIBS       := -L$(MAGMADIR)/lib -lmagma_sparse -lmagma \
 
 all: main test generate-weight
 
-generate-weight: generate-weight.cpp
-	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) -o $@ $^ $(MAGMA_LIBS)
+generate-weight: generate-weight.o helper_lib.o
+	$(MPICXX) $(CXXFLAGS) $(MAGMA_CFLAGS) -o $@ $^ $(MAGMA_LIBS)
 
 main: main.o helper_lib.o
 	$(MPICXX) $(CXXFLAGS) -o $@ $^ $(MAGMA_LIBS)
@@ -42,6 +42,9 @@ test: test.o helper_lib.o
 	$(MPICXX) $(CXXFLAGS) -o $@ $^ $(MAGMA_LIBS)
 
 test.o: test.cpp
+	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) $(MPICFLAGS) -c $? -o $@
+
+generate-weight.o: generate-weight.cpp
 	$(CXX) $(CXXFLAGS) $(MAGMA_CFLAGS) $(MPICFLAGS) -c $? -o $@
 
 main.o: main.cpp

@@ -4,7 +4,7 @@
 #include <sstream>
 #include <string>
 
-
+#include "helper_lib.h"
 #include "magma_v2.h"
 #include "magma_lapack.h"
 
@@ -30,8 +30,7 @@ int main(int argc, char **argv){
   magma_int_t ISEED[4]={0, 1, 2, 3};
   magma_int_t wSize = row*col;
   lapackf77_slarnv(&ione, ISEED, &wSize, Winp);
-  wFile.write((char*) &Winp, row*col*sizeof(float));
-  wFile.close();
+  write_smatrix(fileName, Winp, row, col);
 
   magma_queue_destroy(queue);
   magma_finalize();
