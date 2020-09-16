@@ -1,6 +1,9 @@
 the configs will be read as arguments
 
-thread-num data-name train-data-row-size data-col-size class-size hidden-neuron-size alfa running-time-filename
+data-name train-data-row-size data-col-size class-size hidden-neuron-size alfa subdata-count running-time-filename
+
+TO RUN 1 process per node with 1 sub data count, example:
+mpirun --bind-to none -pernode ./main mnist 60000 784 10 1100 0.1 1 pc-running-time.csv
 
 
 1. read inputs and make sure its transposed (column major)

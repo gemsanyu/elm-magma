@@ -45,7 +45,8 @@ Config readConfig(char **argv){
     to_string(config.hiddenNeuron)+".bin";
   config.wOutputFileName = "weight/"+dataName+"/w-out-"+
   to_string(config.hiddenNeuron)+".bin";
-  config.runningTimeFileName = argv[7];
+  config.subCount = atoi(argv[7]);
+  config.runningTimeFileName = argv[8];
   config.runningTimeFileName = "report/"+dataName+"/"+config.runningTimeFileName;
 
   cout << "Using " << dataName <<"\n";

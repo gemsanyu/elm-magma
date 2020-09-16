@@ -10,7 +10,7 @@
 
 struct Config{
   std::string xFileName, yFileName;
-  int row, col, classNum, hiddenNeuron;
+  int row, col, classNum, hiddenNeuron, subCount;
   float alpha;
   std::string wInputFileName, wOutputFileName, runningTimeFileName;
 };
