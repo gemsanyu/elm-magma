@@ -260,7 +260,7 @@ void writeRunningTimeData(string fileName, RunningTimeData rt){
     outFile = fopen(fileName.c_str(), "a");
   } else {
     outFile = fopen(fileName.c_str(), "wb");
-    fprintf(outFile, "NP,NS,ROW,COL,HIDDEN_NEURON,READ_TIME,GEN_W_TIME,MAX_H,MAX_A,MAX_W,COMBINE_W,TOTAL\n");
+    fprintf(outFile, "NP,NS,ROW,COL,HIDDEN_NEURON,READ_TIME,MAX_H,MAX_A,MAX_W,COMBINE_W,TOTAL\n");
   }
   fprintf(outFile, "%d,%d,%d,%d,%d,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf,%.5lf\n", rt.np,
   rt.subCount, rt.row, rt.col, rt.hiddenNeuron, rt.readDataTime, rt.maxH,
