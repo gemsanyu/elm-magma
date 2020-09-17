@@ -13,3 +13,5 @@ elm-v2
 main
 test
 generate-weight
+*.err
+*.out
